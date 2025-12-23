@@ -1,0 +1,434 @@
+
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><!--Consider adding manifest.json and service worker for PWA support. Enable offline mode and add to home screen.-->
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>MOOD. RAW.</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&amp;family=JetBrains+Mono:wght@400;800&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+        :root {
+            --brutal-black: #050505;
+            --brutal-white: #FAFAFA;
+            --brutal-highlight: #FF003C;
+        }
+        body.dark {
+            --brutal-black: #FAFAFA;
+            --brutal-white: #050505;
+            filter: invert(1) hue-rotate(180deg);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--brutal-white);
+            color: var(--brutal-black);
+            cursor: crosshair;
+            touch-action: manipulation; /* Improves mobile tap response */
+        }
+        .font-mono-brutal { font-family: 'JetBrains Mono', monospace; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* --- NOISE GRAIN --- */
+        .noise {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; opacity: 0.08; z-index: 9999;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        /* --- BRUTAL UTILITIES --- */
+        .brutal-border { border: 4px solid var(--brutal-black); }
+        .brutal-shadow-hard {
+            box-shadow: 6px 6px 0px 0px var(--brutal-black); /* Slightly smaller for better mobile fit */
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .brutal-shadow-hard:active {
+            box-shadow: 0px 0px 0px 0px var(--brutal-black);
+            transform: translate(6px, 6px);
+        }
+        @media (min-width: 768px) {
+            .brutal-shadow-hard { box-shadow: 8px 8px 0px 0px var(--brutal-black); }
+            .brutal-shadow-hard:hover {
+                 box-shadow: 0px 0px 0px 0px var(--brutal-black);
+                 transform: translate(8px, 8px);
+            }
+        }
+
+        /* --- KINETIC MARQUEE --- */
+        .marquee-container { overflow: hidden; white-space: nowrap; display: flex; position: relative; }
+        .marquee-content { display: flex; animation: marquee 20s linear infinite; }
+        @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+        /* --- HARSH INVERSIONS (Desktop Hover Only) --- */
+        @media (hover: hover) {
+            .hover-invert:hover {
+                background-color: var(--brutal-black) !important;
+                color: var(--brutal-white) !important;
+                border-color: var(--brutal-black) !important;
+            }
+            .group:hover .group-hover-invert { color: var(--brutal-white) !important; }
+        }
+
+        /* --- SCREEN FX --- */
+        @keyframes screen-tear {
+            0% { clip-path: inset(0 0 0 0); }
+            20% { clip-path: inset(10% -6px 60% 0); transform: translate(-5px); filter: drop-shadow(5px 0 0 red) drop-shadow(-5px 0 0 blue); }
+            40% { clip-path: inset(50% 0 20% -6px); transform: translate(5px); }
+            60% { clip-path: inset(0 -6px 80% 0); transform: translate(-5px); }
+            100% { clip-path: inset(0 0 0 0); }
+        }
+        .screen-tear-active { animation: screen-tear 0.25s ease-out both; }
+
+        /* --- TYPEWRITER CURSOR --- */
+        .typewriter-cursor::after {
+            content: '█'; animation: blink 0.8s step-start infinite;
+            color: var(--brutal-highlight); margin-left: 2px;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+<script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        accent: '#FF003C',
+                        mood: { happy: '#FFD700', sad: '#2E00FF', angry: '#FF3C00', stressed: '#8F00FF', neutral: '#A3A3A3' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen overflow-x-hidden selection:bg-accent selection:text-white"><a class="skip-link" href="#page-home" style="position:absolute;top:0;left:0;background:#000;color:#fff;padding:8px;z-index:9999;transition:top 0.5s;outline:2px solid #fff;font-weight:bold;text-decoration:none;">Skip to main content</a>
+<div class="noise"></div>
+<!-- SOUND TOGGLE (Mobile optimized position) -->
+<div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 mix-blend-difference">
+<button aria-label="🔇 AUDIO" class="brutal-border bg-white p-3 sm:p-4 brutal-shadow-hard font-mono-brutal text-xs sm:text-sm uppercase font-black tracking-widest hover-invert" id="sound-toggle" onclick="toggleSound(); event.stopPropagation();" tabindex="0">
+            🔇 AUDIO
+        </button>
+</div>
+<!-- NAV -->
+<nav class="fixed top-0 w-full z-40 bg-white/80 backdrop-blur-md border-b-4 border-black px-4 py-3 sm:p-4">
+<div class="max-w-7xl mx-auto flex justify-between items-center">
+<div class="text-3xl sm:text-5xl font-black tracking-tighter italic cursor-pointer" onclick="showPage('home'); playSound('click');">
+                MOOD.
+            </div>
+<div class="flex space-x-4 sm:space-x-8 font-mono-brutal font-black text-sm sm:text-lg uppercase">
+<button aria-label="Input" class="hover:underline decoration-4 underline-offset-4 decoration-accent" onclick="showPage('home'); playSound('click');" tabindex="0">Input</button>
+<button aria-label="Data" class="hover:underline decoration-4 underline-offset-4 decoration-accent" onclick="showPage('trends'); playSound('click');" tabindex="0">Data</button><button aria-label="Export mood data as JSON" class="brutal-border px-3 sm:px-4 bg-green-600 text-white transition-all active:scale-90" id="export-json" tabindex="0">Export JSON</button>
+<button aria-label="Import mood data from JSON" class="brutal-border px-3 sm:px-4 bg-blue-600 text-white transition-all active:scale-90" id="import-json" tabindex="0">Import JSON</button>
+
+<button aria-label="◑" class="brutal-border px-3 sm:px-4 bg-black text-white transition-all active:scale-90" id="theme-toggle" onclick="playSound('blip')" tabindex="0">◑</button>
+</div>
+</div>
+</nav>
+<main class="pt-28 sm:pt-36 pb-32 px-4 md:px-8 max-w-6xl mx-auto" role="main">
+<!-- == PAGE: HOME == -->
+<div class="transition-all duration-300" id="page-home">
+<header class="mb-16 sm:mb-24">
+<!-- Clamp font size for mobile responsiveness -->
+<h1 class="text-[clamp(4rem,15vw,12rem)] font-black leading-[0.85] tracking-tighter mb-8 sm:mb-12">
+                    STATE<br/>YOUR<br/><span class="bg-black text-white px-4 sm:px-6 italic inline-block -rotate-2">MIND.</span>
+</h1>
+</header>
+<!-- Mood Selectors (Mobile Grid 2x2 + 1, Desktop 5x1) -->
+<section class="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6 mb-24 sm:mb-32">
+<button aria-label="😊
+Happy" class="group brutal-border brutal-shadow-hard bg-white h-48 sm:h-64 flex flex-col justify-between p-4 sm:p-6 hover:bg-mood-happy transition-colors active:bg-mood-happy" onclick="logMood('happy')" tabindex="0">
+<span class="text-6xl sm:text-8xl self-center group-hover:scale-110 transition-transform duration-200 ease-out-back">😊</span>
+<span class="font-mono-brutal font-black text-base sm:text-xl uppercase tracking-widest border-t-4 border-black pt-4 group-hover:border-black">Happy</span>
+</button>
+<button aria-label="😢
+Sad" class="group brutal-border brutal-shadow-hard bg-white h-48 sm:h-64 flex flex-col justify-between p-4 sm:p-6 hover:bg-mood-sad transition-colors group-hover-invert active:bg-mood-sad active:text-white" onclick="logMood('sad')" tabindex="0">
+<span class="text-6xl sm:text-8xl self-center group-hover:translate-y-2 transition-transform duration-300">😢</span>
+<span class="font-mono-brutal font-black text-base sm:text-xl uppercase tracking-widest border-t-4 border-black pt-4 group-hover:border-white group-hover:text-white group-active:border-white">Sad</span>
+</button>
+<button aria-label="😠
+Angry" class="group brutal-border brutal-shadow-hard bg-white h-48 sm:h-64 flex flex-col justify-between p-4 sm:p-6 hover:bg-mood-angry transition-colors group-hover-invert active:bg-mood-angry active:text-white" onclick="logMood('angry')" tabindex="0">
+<span class="text-6xl sm:text-8xl self-center group-hover:animate-[shake_0.2s_infinite]">😠</span>
+<span class="font-mono-brutal font-black text-base sm:text-xl uppercase tracking-widest border-t-4 border-black pt-4 group-hover:border-white group-hover:text-white group-active:border-white">Angry</span>
+</button>
+<button aria-label="😰
+Stressed" class="group brutal-border brutal-shadow-hard bg-white h-48 sm:h-64 flex flex-col justify-between p-4 sm:p-6 hover:bg-mood-stressed transition-colors group-hover-invert active:bg-mood-stressed active:text-white" onclick="logMood('stressed')" tabindex="0">
+<span class="text-6xl sm:text-8xl self-center group-hover:animate-pulse">😰</span>
+<span class="font-mono-brutal font-black text-base sm:text-xl uppercase tracking-widest border-t-4 border-black pt-4 group-hover:border-white group-hover:text-white group-active:border-white">Stressed</span>
+</button>
+<button aria-label="😐
+Neutral" class="group brutal-border brutal-shadow-hard bg-white h-48 sm:h-64 flex flex-col justify-between p-4 sm:p-6 hover:bg-mood-neutral transition-colors col-span-2 md:col-span-1 active:bg-mood-neutral" onclick="logMood('neutral')" tabindex="0">
+<span class="text-6xl sm:text-8xl self-center group-hover:rotate-180 transition-transform duration-500">😐</span>
+<span class="font-mono-brutal font-black text-base sm:text-xl uppercase tracking-widest border-t-4 border-black pt-4">Neutral</span>
+</button>
+</section>
+<!-- Dynamic Input Area -->
+<div class="hidden" id="dynamic-content">
+<!-- Marquee Divider -->
+<div class="marquee-container border-y-4 border-black py-2 mb-16 bg-accent text-white font-mono-brutal font-black text-xl sm:text-2xl">
+<div class="marquee-content">
+<span class="mx-4"> // LOG_ENTRY_DETECTED </span> <span class="mx-4"> // AWAITING_USER_INPUT </span> <span class="mx-4"> // DO_NOT_CENSOR_YOURSELF </span>
+<span class="mx-4"> // LOG_ENTRY_DETECTED </span> <span class="mx-4"> // AWAITING_USER_INPUT </span> <span class="mx-4"> // DO_NOT_CENSOR_YOURSELF </span>
+</div>
+</div>
+<!-- Quote Box -->
+<div class="brutal-border bg-black text-white p-6 sm:p-16 mb-16 -rotate-1 transition-transform duration-100" id="quote-box">
+<h2 class="text-2xl sm:text-5xl md:text-6xl font-black uppercase leading-[1.1] mb-8 sm:mb-12 typewriter-cursor min-h-[8rem]" id="quote-text"></h2>
+<p class="font-mono-brutal font-black text-lg sm:text-2xl text-right tracking-widest text-accent" id="quote-author">// AUTHOR_UNKNOWN</p>
+</div>
+<!-- Inputs -->
+<div class="grid md:grid-cols-2 gap-12 md:gap-8 mb-16">
+<div class="brutal-border p-6 sm:p-8 bg-white brutal-shadow-hard">
+<label class="block font-black text-2xl sm:text-3xl mb-6 uppercase bg-black text-white px-3 sm:px-4 -ml-8 sm:-ml-12 -mt-10 sm:-mt-12 w-max rotate-1 border-4 border-white">Gratitude_Log</label>
+<textarea class="w-full bg-neutral-50 border-4 border-black p-4 sm:p-5 font-mono-brutal font-bold text-lg sm:text-xl focus:outline-none focus:bg-accent/10 resize-none placeholder-black/40" id="gratitude-entry" placeholder="WHAT DOESN'T SUCK?" rows="5"></textarea>
+</div>
+<div class="brutal-border p-6 sm:p-8 bg-white brutal-shadow-hard">
+<label class="block font-black text-2xl sm:text-3xl mb-6 uppercase bg-accent text-white px-3 sm:px-4 -ml-8 sm:-ml-12 -mt-10 sm:-mt-12 w-max -rotate-1 border-4 border-black">Brain_Dump</label>
+<textarea class="w-full bg-neutral-50 border-4 border-black p-4 sm:p-5 font-mono-brutal font-bold text-lg sm:text-xl focus:outline-none focus:bg-accent/10 resize-none placeholder-black/40" id="journal-entry" placeholder="SPILL IT ALL." rows="5"></textarea>
+</div>
+</div>
+<!-- HUGE COMMIT BUTTON -->
+<button aria-label="COMMIT_LOG();" class="w-full py-8 sm:py-12 bg-black text-white font-black text-4xl sm:text-6xl md:text-8xl uppercase tracking-widest hover:bg-accent hover:text-black transition-colors active:scale-[0.99] border-y-8 border-transparent hover:border-black" onclick="saveEntry(); event.stopPropagation();" tabindex="0">
+                    COMMIT_LOG();
+                </button>
+</div>
+</div>
+<!-- == PAGE: TRENDS == -->
+<div class="hidden" id="page-trends">
+<header class="mb-16 sm:mb-24">
+<h1 class="text-[clamp(4rem,15vw,12rem)] font-black leading-[0.8] tracking-tighter">
+                    RAW<br/><span class="text-accent">DATA.</span>
+</h1>
+</header>
+<!-- Heatmap Grid -->
+<section class="mb-24 sm:mb-32">
+<h2 class="font-mono-brutal font-black text-2xl sm:text-4xl mb-8 sm:mb-12 uppercase border-b-[8px] sm:border-b-[12px] border-black inline-block leading-[0.8]">Mood_Matrix</h2>
+<div class="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-12 gap-2 sm:gap-3" id="heatmap-container">
+<div class="font-mono-brutal opacity-50 col-span-full text-xl sm:text-2xl">NO DATA FOUND.</div>
+</div>
+</section>
+<!-- Brutal Charts -->
+<section class="grid lg:grid-cols-2 gap-12 sm:gap-16 mb-24 sm:mb-32">
+<div class="brutal-border p-6 sm:p-10 bg-white brutal-shadow-hard">
+<h3 class="font-black text-xl sm:text-3xl uppercase mb-8 sm:mb-12 bg-black text-white inline-block px-4 -rotate-1">Linear_Flow</h3>
+<div class="h-[300px] sm:h-[450px]"><canvas id="moodChart"></canvas></div>
+</div>
+<div class="brutal-border p-6 sm:p-10 bg-white brutal-shadow-hard">
+<h3 class="font-black text-xl sm:text-3xl uppercase mb-8 sm:mb-12 bg-black text-white inline-block px-4 rotate-1">Distribution</h3>
+<div class="h-[300px] sm:h-[450px]"><canvas id="donutChart"></canvas></div>
+</div>
+</section>
+<!-- Archive List -->
+<section>
+<h2 class="font-black text-4xl sm:text-6xl uppercase mb-12 sm:mb-16">Archives.</h2>
+<div class="space-y-6 sm:space-y-8" id="timeline-container"></div>
+</section>
+</div>
+</main>
+<!-- RAW JS ENGINE -->
+<script>
+        // === 1. PRO AUDIO ENGINE ===
+        let audioCtx, soundEnabled = false;
+        const toggleBtn = document.getElementById('sound-toggle');
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            soundEnabled = true; toggleBtn.innerHTML = "🔊 AUDIO_ON"; toggleBtn.classList.add('bg-accent', 'text-white');
+            playTone(440, 'sine', 0.1, 0.1);
+             if (navigator.vibrate) navigator.vibrate(50); // Haptic confirm
+        }
+        function toggleSound() {
+            if (!soundEnabled) initAudio();
+            else { soundEnabled = false; toggleBtn.innerHTML = "🔇 AUDIO"; toggleBtn.classList.remove('bg-accent', 'text-white'); }
+        }
+        function vibe(pattern) { if (navigator.vibrate) navigator.vibrate(pattern); } // Haptic helper
+
+        function playTone(freq, type, duration, vol=0.1) {
+            if (!soundEnabled || !audioCtx) return;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+        function playSound(type) {
+            if (!soundEnabled || !audioCtx) return;
+            const now = audioCtx.currentTime;
+            switch (type) {
+                case 'click': playTone(800, 'square', 0.05, 0.05); vibe(10); break;
+                case 'blip': playTone(1200, 'sine', 0.1); vibe(5); break;
+                case 'type': playTone(600 + Math.random()*200, 'triangle', 0.02, 0.02); break;
+                case 'success':
+                    const osc = audioCtx.createOscillator(); const g = audioCtx.createGain(); osc.connect(g); g.connect(audioCtx.destination);
+                    osc.type = 'square'; osc.frequency.setValueAtTime(220, now); osc.frequency.exponentialRampToValueAtTime(880, now + 0.4);
+                    g.gain.setValueAtTime(0.2, now); g.gain.linearRampToValueAtTime(0, now + 0.5); osc.start(); osc.stop(now + 0.5);
+                    vibe([100, 50, 100]); break;
+            }
+        }
+        // FIX: NEW AUDIO FOR SAD/STRESSED
+        function playMoodSound(mood) {
+            vibe(50); // Immediate haptic
+            if (!soundEnabled || !audioCtx) return;
+            const now = audioCtx.currentTime; const master = audioCtx.createGain(); master.connect(audioCtx.destination); master.gain.value = 0.3;
+            if (mood === 'happy') { [261.63, 329.63, 392.00, 523.25].forEach((f, i) => { const o = audioCtx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.connect(master); o.start(now + i * 0.08); o.stop(now + i * 0.08 + 0.2); }); }
+            // SAD: Deep unstable drone (fixed)
+            else if (mood === 'sad') {
+                const o1 = audioCtx.createOscillator(); o1.type = 'sine'; o1.frequency.value = 65.41; // Low C2
+                const o2 = audioCtx.createOscillator(); o2.type = 'sine'; o2.frequency.value = 67.00; // Slight detune for beating effect
+                const g = audioCtx.createGain(); o1.connect(g); o2.connect(g); g.connect(master);
+                g.gain.setValueAtTime(0.01, now); g.gain.linearRampToValueAtTime(0.4, now + 0.5); g.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
+                o1.start(now); o2.start(now); o1.stop(now + 3.5); o2.stop(now + 3.5);
+                vibe([200]);
+            }
+            else if (mood === 'angry') { const o = audioCtx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(55, now); const d = audioCtx.createWaveShaper(); d.curve = makeDistortionCurve(400); o.connect(d); d.connect(master); master.gain.setValueAtTime(0.4, now); master.gain.exponentialRampToValueAtTime(0.001, now + 0.8); o.start(now); o.stop(now + 0.8); vibe([50, 50, 50, 50]); }
+            // STRESSED: Industrial Alarm Pulse (fixed)
+            else if (mood === 'stressed') {
+                for(let i=0; i<6; i++) {
+                    const o = audioCtx.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(800, now + i*0.15);
+                    const g = audioCtx.createGain(); o.connect(g); g.connect(master);
+                    g.gain.setValueAtTime(0, now + i*0.15); g.gain.linearRampToValueAtTime(0.2, now + i*0.15 + 0.02); g.gain.linearRampToValueAtTime(0, now + i*0.15 + 0.1);
+                    o.start(now + i*0.15); o.stop(now + i*0.15 + 0.1);
+                }
+                vibe([30, 30, 30, 30, 30, 30]);
+            }
+            else { playTone(440, 'sine', 1.5, 0.2); }
+        }
+        function makeDistortionCurve(amount) { const k = amount, n_samples = 44100, curve = new Float32Array(n_samples), deg = Math.PI / 180; for (let i = 0; i < n_samples; ++i) { let x = i * 2 / n_samples - 1; curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x)); } return curve; }
+
+        // === 2. KINETIC UTILS ===
+        let typeTimeout;
+        function typeWriter(element, text, speed = 20, i = 0) {
+            if (i === 0) element.textContent = "";
+            if (i < text.length) { element.textContent += text.charAt(i); if (text.charAt(i) !== ' ' && i % 3 === 0) playSound('type'); typeTimeout = setTimeout(() => typeWriter(element, text, speed, i + 1), speed); }
+        }
+
+        // === 3. MASSIVE QUOTE DB ===
+        const MOODS = { happy: { color: '#FFD700', emoji: '😊' }, sad: { color: '#2E00FF', emoji: '😢' }, angry: { color: '#FF3C00', emoji: '😠' }, stressed: { color: '#8F00FF', emoji: '😰' }, neutral: { color: '#A3A3A3', emoji: '😐' } };
+        const MOOD_VALS = { 'happy': 5, 'neutral': 3, 'sad': 2, 'stressed': 1, 'angry': 0 };
+        const VALUE_TO_MOOD = { 5: 'Happy', 3: 'Neutral', 2: 'Sad', 1: 'Stressed', 0: 'Angry' };
+        const QUOTES = {
+            happy: [
+                {t:"VERY LITTLE IS NEEDED TO MAKE A HAPPY LIFE; IT IS ALL WITHIN YOURSELF, IN YOUR WAY OF THINKING.", a:"MARCUS AURELIUS"}, {t:"TRUE HAPPINESS IS TO ENJOY THE PRESENT, WITHOUT ANXIOUS DEPENDENCE UPON THE FUTURE.", a:"SENECA"}, {t:"HE WHO LAUGHS AT HIMSELF NEVER RUNS OUT OF THINGS TO LAUGH AT.", a:"EPICTETUS"}, {t:"HAPPINESS IS NOT SOMETHING READY MADE. IT COMES FROM YOUR OWN ACTIONS.", a:"DALAI LAMA"}, {t:"THE MORE MAN MEDITATES UPON GOOD THOUGHTS, THE BETTER WILL BE HIS WORLD AND THE WORLD AT LARGE.", a:"CONFUCIUS"}, {t:"IT IS NOT HOW MUCH WE HAVE, BUT HOW MUCH WE ENJOY, THAT MAKES HAPPINESS.", a:"CHARLES SPURGEON"}, {t:"THE ONLY WAY TO FIND TRUE HAPPINESS IS TO RISK BEING COMPLETELY CUT OPEN.", a:"CHUCK PALAHNIUK"}, {t:"HAPPINESS DEPENDS UPON OURSELVES.", a:"ARISTOTLE"}, {t:"WASTE NO MORE TIME ARGUING ABOUT WHAT A GOOD MAN SHOULD BE. BE ONE.", a:"MARCUS AURELIUS"}, {t:"JOY IS THE SIMPLEST FORM OF GRATITUDE.", a:"KARL BARTH"}, {t:"DWELL ON THE BEAUTY OF LIFE. WATCH THE STARS, AND SEE YOURSELF RUNNING WITH THEM.", a:"MARCUS AURELIUS"}, {t:"HE IS A WISE MAN WHO DOES NOT GRIEVE FOR THE THINGS WHICH HE HAS NOT, BUT REJOICES FOR THOSE WHICH HE HAS.", a:"EPICTETUS"}, {t:"IF YOU WANT TO BE HAPPY, BE.", a:"LEO TOLSTOY"}, {t:"THE ART OF BEING HAPPY LIES IN THE POWER OF EXTRACTING HAPPINESS FROM COMMON THINGS.", a:"HENRY WARD BEECHER"}, {t:"COUNT YOUR AGE BY FRIENDS, NOT YEARS. COUNT YOUR LIFE BY SMILES, NOT TEARS.", a:"JOHN LENNON"}, {t:"FOR EVERY MINUTE YOU ARE ANGRY YOU LOSE SIXTY SECONDS OF HAPPINESS.", a:"RALPH WALDO EMERSON"}, {t:"THE BEST REVENGE IS MASSIVE SUCCESS.", a:"FRANK SINATRA"}, {t:"HAPPINESS IS A WARM PUPPY.", a:"CHARLES M. SCHULZ"}, {t:"DO NOT SPOIL WHAT YOU HAVE BY DESIRING WHAT YOU HAVE NOT.", a:"EPICURUS"}, {t:"THE PRESENT MOMENT IS FILLED WITH JOY AND HAPPINESS. IF YOU ARE ATTENTIVE, YOU WILL SEE IT.", a:"THICH NHAT HANH"}, {t:"HAPPINESS IS NOT A GOAL...IT'S A BY-PRODUCT OF A LIFE WELL LIVED.", a:"ELEANOR ROOSEVELT"}, {t:"ACTION MAY NOT ALWAYS BRING HAPPINESS, BUT THERE IS NO HAPPINESS WITHOUT ACTION.", a:"BENJAMIN DISRAELI"}, {t:"SUCCESS IS GETTING WHAT YOU WANT. HAPPINESS IS WANTING WHAT YOU GET.", a:"DALE CARNEGIE"}, {t:"WE ARE SHAPED BY OUR THOUGHTS; WE BECOME WHAT WE THINK. WHEN THE MIND IS PURE, JOY FOLLOWS LIKE A SHADOW THAT NEVER LEAVES.", a:"BUDDHA"}, {t:"THERE IS NO PATH TO HAPPINESS: HAPPINESS IS THE PATH.", a:"BUDDHA"}
+            ],
+            sad: [
+                {t:"THE IMPEDIMENT TO ACTION ADVANCES ACTION. WHAT STANDS IN THE WAY BECOMES THE WAY.", a:"MARCUS AURELIUS"}, {t:"WE SUFFER MORE OFTEN IN IMAGINATION THAN IN REALITY.", a:"SENECA"}, {t:"IF YOU ARE DISTRESSED BY ANYTHING EXTERNAL, THE PAIN IS NOT DUE TO THE THING ITSELF, BUT TO YOUR ESTIMATE OF IT; AND THIS YOU HAVE THE POWER TO REVOKE AT ANY MOMENT.", a:"MARCUS AURELIUS"}, {t:"HE WHO FEARS DEATH WILL NEVER DO ANYTHING WORTHY OF A MAN WHO IS ALIVE.", a:"SENECA"}, {t:"IT IS NOT DEATH THAT A MAN SHOULD FEAR, BUT HE SHOULD FEAR NEVER BEGINNING TO LIVE.", a:"MARCUS AURELIUS"}, {t:"SUFFERING ARISES FROM TRYING TO CONTROL WHAT IS UNCONTROLLABLE, OR FROM NEGLECTING WHAT IS WITHIN OUR POWER.", a:"EPICTETUS"}, {t:"DIFFICULTIES STRENGTHEN THE MIND, AS LABOR DOES THE BODY.", a:"SENECA"}, {t:"TO BEAR TRIALS WITH A CALM MIND ROBS MISFORTUNE OF ITS STRENGTH AND BURDEN.", a:"SENECA"}, {t:"WHEN YOU ARISE IN THE MORNING THINK OF WHAT A PRIVILEGE IT IS TO BE ALIVE, TO THINK, TO ENJOY, TO LOVE.", a:"MARCUS AURELIUS"}, {t:"YOU HAVE POWER OVER YOUR MIND - NOT OUTSIDE EVENTS. REALIZE THIS, AND YOU WILL FIND STRENGTH.", a:"MARCUS AURELIUS"}, {t:"OUT OF SUFFERING HAVE EMERGED THE STRONGEST SOULS; THE MOST MASSIVE CHARACTERS ARE SEARED WITH SCARS.", a:"KAHLIL GIBRAN"}, {t:"HE WHO HAS A WHY TO LIVE FOR CAN BEAR ALMOST ANY HOW.", a:"FRIEDRICH NIETZSCHE"}, {t:"THE WOUND IS THE PLACE WHERE THE LIGHT ENTERS YOU.", a:"RUMI"}, {t:"TURN YOUR WOUNDS INTO WISDOM.", a:"OPRAH WINFREY"}, {t:"TO LIVE IS TO SUFFER, TO SURVIVE IS TO FIND SOME MEANING IN THE SUFFERING.", a:"FRIEDRICH NIETZSCHE"}, {t:"ALTHOUGH THE WORLD IS FULL OF SUFFERING, IT IS ALSO FULL OF THE OVERCOMING OF IT.", a:"HELEN KELLER"}, {t:"PAIN IS INEVITABLE. SUFFERING IS OPTIONAL.", a:"HARUKI MURAKAMI"}, {t:"SOMETIMES YOU WAKE UP. SOMETIMES THE FALL KILLS YOU. AND SOMETIMES, WHEN YOU FALL, YOU FLY.", a:"NEIL GAIMAN"}, {t:"I AM NOT WHAT HAPPENED TO ME, I AM WHAT I CHOOSE TO BECOME.", a:"CARL JUNG"}, {t:"ROCK BOTTOM BECAME THE SOLID FOUNDATION ON WHICH I REBUILT MY LIFE.", a:"J.K. ROWLING"}, {t:"THE DEEPER THAT SORROW CARVES INTO YOUR BEING, THE MORE JOY YOU CAN CONTAIN.", a:"KAHLIL GIBRAN"}, {t:"IT IS OKAY TO BE SAD. IT IS NOT OKAY TO STAY SAD.", a:"ANON"}, {t:"THIS TOO SHALL PASS.", a:"PERSIAN ADAGE"}, {t:"EVERYTHING WILL BE OKAY IN THE END. IF IT'S NOT OKAY, IT'S NOT THE END.", a:"JOHN LENNON"}, {t:"SADNESS FLIES AWAY ON THE WINGS OF TIME.", a:"JEAN DE LA FONTAINE"}
+            ],
+            angry: [
+                {t:"ANGER, IF NOT RESTRAINED, IS FREQUENTLY MORE HURTFUL TO US THAN THE INJURY THAT PROVOKES IT.", a:"SENECA"}, {t:"THE BEST REVENGE IS NOT TO BE LIKE YOUR ENEMY.", a:"MARCUS AURELIUS"}, {t:"HOW MUCH MORE GRIEVOUS ARE THE CONSEQUENCES OF ANGER THAN THE CAUSES OF IT.", a:"MARCUS AURELIUS"}, {t:"HE WHO ANGERS YOU CONQUERS YOU.", a:"ELIZABETH KENNY"}, {t:"WHENEVER YOU ARE ANGRY, BE ASSURED THAT IT IS NOT ONLY A PRESENT EVIL, BUT THAT YOU HAVE INCREASED A HABIT.", a:"EPICTETUS"}, {t:"ANY PERSON CAPABLE OF ANGERING YOU BECOMES YOUR MASTER.", a:"EPICTETUS"}, {t:"SPEAK WHEN YOU ARE ANGRY AND YOU WILL MAKE THE BEST SPEECH YOU WILL EVER REGRET.", a:"AMBROSE BIERCE"}, {t:"HOLDING ON TO ANGER IS LIKE GRASPING A HOT COAL WITH THE INTENT OF THROWING IT AT SOMEONE ELSE; YOU ARE THE ONE WHO GETS BURNED.", a:"BUDDHA"}, {t:"ANGER IS AN ACID THAT CAN DO MORE HARM TO THE VESSEL IN WHICH IT IS STORED THAN TO ANYTHING ON WHICH IT IS POURED.", a:"MARK TWAIN"}, {t:"FOR EVERY MINUTE YOU ARE ANGRY YOU LOSE SIXTY SECONDS OF HAPPINESS.", a:"RALPH WALDO EMERSON"}, {t:"NEVER GO TO BED MAD. STAY UP AND FIGHT.", a:"PHYLLIS DILLER"}, {t:"A QUICK TEMPER WILL MAKE A FOOL OF YOU SOON ENOUGH.", a:"BRUCE LEE"}, {t:"WHEN ANGER RISES, THINK OF THE CONSEQUENCES.", a:"CONFUCIUS"}, {t:"ANGER DWELLS ONLY IN THE BOSOM OF FOOLS.", a:"ALBERT EINSTEIN"}, {t:"BITTERNESS IS LIKE CANCER. IT EATS UPON THE HOST. BUT ANGER IS LIKE FIRE. IT BURNS IT ALL CLEAN.", a:"MAYA ANGELOU"}, {t:"ANGER IS A WIND WHICH BLOWS OUT THE LAMP OF THE MIND.", a:"ROBERT GREEN INGERSOLL"}, {t:"YOU WILL NOT BE PUNISHED FOR YOUR ANGER, YOU WILL BE PUNISHED BY YOUR ANGER.", a:"BUDDHA"}, {t:"NO MAN CAN THINK CLEARLY WHEN HIS FISTS ARE CLENCHED.", a:"GEORGE JEAN NATHAN"}, {t:"THE GREATEST REMEDY FOR ANGER IS DELAY.", a:"SENECA"}, {t:"IF YOU KICK A STONE IN ANGER YOU WILL HURT YOUR FOOT.", a:"KOREAN PROVERB"}, {t:"IT IS WISE TO DIRECT YOUR ANGER TOWARDS PROBLEMS -- NOT PEOPLE.", a:"WILLIAM ARTHUR WARD"}, {t:"GET MAD, THEN GET OVER IT.", a:"COLIN POWELL"}, {t:"WHEN YOU ARE OFFENDED AT ANY MAN'S FAULT, TURN TO YOURSELF AND STUDY YOUR OWN FAULTS.", a:"MARCUS AURELIUS"}, {t:"WHATEVER IS BEGUN IN ANGER ENDS IN SHAME.", a:"BENJAMIN FRANKLIN"}, {t:"MASTERY OF ANGER IS A SIGN OF STRENGTH.", a:"ANON"}
+            ],
+            stressed: [
+                {t:"WE SUFFER MORE OFTEN IN IMAGINATION THAN IN REALITY.", a:"SENECA"}, {t:"YOU HAVE POWER OVER YOUR MIND - NOT OUTSIDE EVENTS. REALIZE THIS, AND YOU WILL FIND STRENGTH.", a:"MARCUS AURELIUS"}, {t:"IT IS NOT STRESS THAT KILLS US, IT IS OUR REACTION TO IT.", a:"HANS SELYE"}, {t:"IF YOU WANT TO CONQUER THE ANXIETY OF LIFE, LIVE IN THE MOMENT, LIVE IN THE BREATH.", a:"AMIT RAY"}, {t:"NOTHING DIMINISHES ANXIETY FASTER THAN ACTION.", a:"WALTER ANDERSON"}, {t:"THE GREATEST WEAPON AGAINST STRESS IS OUR ABILITY TO CHOOSE ONE THOUGHT OVER ANOTHER.", a:"WILLIAM JAMES"}, {t:"STRESS IS CAUSED BY BEING 'HERE' BUT WANTING TO BE 'THERE'.", a:"ECKHART TOLLE"}, {t:"MAN IS NOT WORRIED BY REAL PROBLEMS SO MUCH AS BY HIS IMAGINED ANXIETIES ABOUT REAL PROBLEMS.", a:"EPICTETUS"}, {t:"DO NOT ANTICIPATE TROUBLE, OR WORRY ABOUT WHAT MAY NEVER HAPPEN. KEEP IN THE SUNLIGHT.", a:"BENJAMIN FRANKLIN"}, {t:"RULE NUMBER ONE IS, DON'T SWEAT THE SMALL STUFF. RULE NUMBER TWO IS, IT'S ALL SMALL STUFF.", a:"ROBERT ELIOT"}, {t:"MUCH OF YOUR PAIN IS SELF-CHOSEN.", a:"KAHLIL GIBRAN"}, {t:"TENSION IS WHO YOU THINK YOU SHOULD BE. RELAXATION IS WHO YOU ARE.", a:"CHINESE PROVERB"}, {t:"CALM MIND BRINGS INNER STRENGTH AND SELF-CONFIDENCE, SO THAT'S VERY IMPORTANT FOR GOOD HEALTH.", a:"DALAI LAMA"}, {t:"WITHIN YOU, THERE IS A STILLNESS AND A SANCTUARY TO WHICH YOU CAN RETREAT AT ANY TIME AND BE YOURSELF.", a:"HERMANN HESSE"}, {t:"ALMOST EVERYTHING WILL WORK AGAIN IF YOU UNPLUG IT FOR A FEW MINUTES, INCLUDING YOU.", a:"ANNE LAMOTT"}, {t:"BREATHE. LET GO. AND REMIND YOURSELF THAT THIS VERY MOMENT IS THE ONLY ONE YOU KNOW YOU HAVE FOR SURE.", a:"OPRAH WINFREY"}, {t:"FEAR IS THE MIND-KILLER.", a:"FRANK HERBERT"}, {t:"DO WHAT YOU CAN, WITH WHAT YOU HAVE, WHERE YOU ARE.", a:"THEODORE ROOSEVELT"}, {t:"WORRY DOES NOT EMPTY TOMORROW OF ITS SORROW, IT EMPTIES TODAY OF ITS STRENGTH.", a:"CORRIE TEN BOOM"}, {t:"YOU CANNOT ALWAYS CONTROL WHAT GOES ON OUTSIDE. BUT YOU CAN ALWAYS CONTROL WHAT GOES ON INSIDE.", a:"WAYNE DYER"}, {t:"TODAY IS THE TOMORROW YOU WORRIED ABOUT YESTERDAY.", a:"ANON"}, {t:"SLOW DOWN AND EVERYTHING YOU ARE CHASING WILL COME AROUND AND CATCH YOU.", a:"JOHN DE PAOLA"}, {t:"SOMETIMES THE MOST PRODUCTIVE THING YOU CAN DO IS RELAX.", a:"MARK BLACK"}, {t:"YOUR CALM MIND IS THE ULTIMATE WEAPON AGAINST YOUR CHALLENGES.", a:"BRYANT MCGILL"}, {t:"GRANT ME THE SERENITY TO ACCEPT THE THINGS I CANNOT CHANGE, THE COURAGE TO CHANGE THE THINGS I CAN, AND THE WISDOM TO KNOW THE DIFFERENCE.", a:"REINHOLD NIEBUHR"}
+            ],
+            neutral: [
+                {t:"TRANQUILITY IS NOTHING ELSE THAN THE GOOD ORDERING OF THE MIND.", a:"MARCUS AURELIUS"}, {t:"BE LIKE THE PROMONTORY AGAINST WHICH THE WAVES CONTINUALLY BREAK, BUT IT STANDS FIRM AND TAMES THE FURY OF THE WATER AROUND IT.", a:"MARCUS AURELIUS"}, {t:"NOWHERE CAN MAN FIND A QUIETER OR MORE UNTROUBLED RETREAT THAN IN HIS OWN SOUL.", a:"MARCUS AURELIUS"}, {t:"THE MORE WE VALUE THINGS OUTSIDE OUR CONTROL, THE LESS CONTROL WE HAVE.", a:"EPICTETUS"}, {t:"HE WHO IS CONTENTED IS RICH.", a:"LAO TZU"}, {t:"TO BE EVENMINDED IS THE GREATEST VIRTUE.", a:"HERACLITUS"}, {t:"STILLNESS IS THE KEY.", a:"RYAN HOLIDAY"}, {t:"SILENCE IS SOMETIMES THE BEST ANSWER.", a:"DALAI LAMA"}, {t:"ADOPT THE PACE OF NATURE: HER SECRET IS PATIENCE.", a:"RALPH WALDO EMERSON"}, {t:"EQUANIMITY IS A PERFECT, UNSHAKABLE BALANCE OF MIND.", a:"Nyanaponika Thera"}, {t:"A QUIET MIND IS ALL YOU NEED.", a:"ECKHART TOLLE"}, {t:"NOTHING IS SO AGGRAVATING AS CALMNESS.", a:"OSCAR WILDE"}, {t:"KEEP COOL AND YOU WILL COMMAND EVERYONE.", a:"SAINT-JUST"}, {t:"PATIENCE IS THE CALM ACCEPTANCE THAT THINGS CAN HAPPEN IN A DIFFERENT ORDER THAN THE ONE YOU HAVE IN MIND.", a:"DAVID G. ALLEN"}, {t:"SERENITY IS NOT FREEDOM FROM THE STORM, BUT PEACE AMID THE STORM.", a:"ANON"}, {t:"BALANCE IS NOT SOMETHING YOU FIND, IT'S SOMETHING YOU CREATE.", a:"JANA KINGSFORD"}, {t:"A CALM SEA DOES NOT MAKE A SKILLED SAILOR.", a:"AFRICAN PROVERB"}, {t:"LEARN TO BE CALM AND YOU WILL ALWAYS BE HAPPY.", a:"PARAMAHANSA YOGANANDA"}, {t:"THE BEST FIGHTER IS NEVER ANGRY.", a:"LAO TZU"}, {t:"DO NOT LET THE BEHAVIOR OF OTHERS DESTROY YOUR INNER PEACE.", a:"DALAI LAMA"}, {t:"PEACE BEGINS WITH A SMILE.", a:"MOTHER TERESA"}, {t:"NOTHING SHAKES THE SMILING HEART.", a:"SANTOSH KALWAR"}, {t:"BE CALM. GOD AWAITS YOU AT THE DOOR.", a:"GABRIEL GARCIA MARQUEZ"}, {t:"MODERATION IN ALL THINGS.", a:"TERENCE"}, {t:"LIFE IS A BALANCE OF HOLDING ON AND LETTING GO.", a:"RUMI"}
+            ]
+        };
+
+        function showPage(pageId) {
+             document.getElementById('page-home').style.display = pageId === 'home' ? 'block' : 'none';
+             document.getElementById('page-trends').style.display = pageId === 'trends' ? 'block' : 'none';
+             if (pageId === 'trends') loadTrends(); window.scrollTo(0,0);
+        }
+
+        function logMood(mood) {
+            playMoodSound(mood);
+            if (mood === 'angry' || mood === 'stressed' || mood === 'sad') { document.body.classList.add('screen-tear-active'); setTimeout(() => document.body.classList.remove('screen-tear-active'), 300); }
+            document.getElementById('dynamic-content').classList.remove('hidden'); setTimeout(() => document.getElementById('dynamic-content').scrollIntoView({ behavior: 'smooth' }), 100);
+            const quotes = QUOTES[mood]; const q = quotes[Math.floor(Math.random() * quotes.length)];
+            clearTimeout(typeTimeout); typeWriter(document.getElementById('quote-text'), q.t); document.getElementById('quote-author').textContent = `// ${q.a}`;
+            window.currentLog = { mood, date: new Date().toLocaleDateString('en-CA'), timestamp: Date.now(), quote: q };
+        }
+
+        function saveEntry() {
+            if (!window.currentLog) return;
+            playSound('success');
+            window.currentLog.gratitude = document.getElementById('gratitude-entry').value; window.currentLog.journal = document.getElementById('journal-entry').value;
+            const logs = JSON.parse(localStorage.getItem('moodLogs')) || []; logs.push(window.currentLog); localStorage.setItem('moodLogs', JSON.stringify(logs));
+            document.getElementById('gratitude-entry').value = ''; document.getElementById('journal-entry').value = '';
+            document.getElementById('dynamic-content').classList.add('hidden'); window.scrollTo({ top: 0, behavior: 'smooth' }); window.currentLog = null;
+        }
+
+        // === 4. TRENDS & HEATMAP ===
+        function loadTrends() {
+            const logs = JSON.parse(localStorage.getItem('moodLogs')) || [];
+            const heatmap = document.getElementById('heatmap-container'); heatmap.innerHTML = '';
+            if (logs.length === 0) { heatmap.innerHTML = '<div class="font-mono-brutal opacity-50 col-span-full text-2xl">NO DATA FOUND.</div>'; }
+            else { logs.slice(-84).forEach(log => { const block = document.createElement('div'); block.className = 'aspect-square brutal-border hover:scale-125 transition-transform cursor-help'; block.style.backgroundColor = MOODS[log.mood].color; block.title = `${new Date(log.timestamp).toLocaleDateString()}: ${log.mood.toUpperCase()}`; heatmap.appendChild(block); }); }
+
+            const timeline = document.getElementById('timeline-container'); timeline.innerHTML = '';
+            [...logs].reverse().slice(0, 15).forEach((log, i) => {
+                timeline.innerHTML += `
+                    <div class="brutal-border p-4 sm:p-8 bg-white brutal-shadow-hard flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-8 hover:-translate-y-2 transition-transform duration-150">
+                        <div class="text-6xl sm:text-7xl">${MOODS[log.mood].emoji}</div>
+                        <div class="flex-grow w-full">
+                            <div class="flex justify-between items-start mb-4 sm:mb-6">
+                                 <span class="font-black uppercase bg-black text-white px-3 sm:px-4 py-1 sm:py-2 text-lg sm:text-2xl">${log.mood}</span>
+                                 <span class="font-mono-brutal font-black text-xs sm:text-sm opacity-50">${new Date(log.timestamp).toLocaleString().toUpperCase()}</span>
+                            </div>
+                            ${log.gratitude ? `<div class="mb-4 font-mono-brutal font-bold text-sm sm:text-lg"><strong class="uppercase bg-mood-happy/20 px-2 mr-2">GRATITUDE:</strong> ${log.gratitude}</div>` : ''}
+                            ${log.journal ? `<div class="font-mono-brutal font-bold text-sm sm:text-lg"><strong class="uppercase bg-accent/20 px-2 mr-2">DUMP:</strong> ${log.journal}</div>` : ''}
+                        </div>
+                    </div>`;
+            });
+            loadCharts(logs);
+        }
+
+        function loadCharts(logs) {
+             const ctxLine = document.getElementById('moodChart').getContext('2d'); const ctxDonut = document.getElementById('donutChart').getContext('2d');
+             const dailyData = {}; logs.forEach(l => { if(!dailyData[l.date]) dailyData[l.date]={sum:0,count:0}; dailyData[l.date].sum+=MOOD_VALS[l.mood]; dailyData[l.date].count++; });
+             const labels=[], dataPoints=[]; for(let i=6; i>=0; i--) { const d=new Date(); d.setDate(d.getDate()-i); const ds=d.toLocaleDateString('en-CA'); labels.push(d.toLocaleDateString([],{weekday:'short'}).toUpperCase()); dataPoints.push(dailyData[ds] ? dailyData[ds].sum/dailyData[ds].count : null); }
+             if(window.myLine) window.myLine.destroy();
+             window.myLine = new Chart(ctxLine, { type: 'line', data: { labels, datasets: [{ data: dataPoints, borderColor: '#000', borderWidth: window.innerWidth < 768 ? 4 : 8, tension: 0, pointBackgroundColor: '#FF003C', pointBorderColor: '#000', pointBorderWidth: window.innerWidth < 768 ? 3 : 5, pointRadius: window.innerWidth < 768 ? 8 : 12, pointHoverRadius: 18, spanGaps: true }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: -0.5, max: 5.5, grid: { color: '#000', lineWidth: window.innerWidth < 768 ? 2 : 4 }, ticks: { color: '#000', font: { family: 'JetBrains Mono', weight: '900', size: window.innerWidth < 768 ? 12 : 16 }, callback: v => (VALUE_TO_MOOD[v]||'').toUpperCase() } }, x: { grid: { display: false }, ticks: { color: '#000', font: { family: 'JetBrains Mono', weight: '900', size: window.innerWidth < 768 ? 12 : 16 } } } }, plugins: { legend: { display: false } } } });
+             const counts = { happy:0, sad:0, angry:0, stressed:0, neutral:0 }; logs.forEach(l => counts[l.mood]++);
+             if(window.myDonut) window.myDonut.destroy();
+             window.myDonut = new Chart(ctxDonut, { type: 'doughnut', data: { labels: Object.keys(counts).map(k=>k.toUpperCase()), datasets: [{ data: Object.values(counts), backgroundColor: Object.values(MOODS).map(m=>m.color), borderColor: '#000', borderWidth: window.innerWidth < 768 ? 4 : 6 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#000', font: { family: 'JetBrains Mono', weight: '900', size: window.innerWidth < 768 ? 12 : 16 }, padding: window.innerWidth < 768 ? 15 : 30 } } } } });
+        }
+        document.getElementById('theme-toggle').addEventListener('click', () => document.body.classList.toggle('dark'));
+    
+// === EXPORT/IMPORT DATA ===
+document.getElementById('export-json').addEventListener('click', function() {
+  const logs = JSON.parse(localStorage.getItem('moodLogs')) || [];
+  const str = JSON.stringify(logs, null, 2);
+  const blob = new Blob([str], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'moodlog-export.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+});
+
+document.getElementById('import-json').addEventListener('click', function() {
+  const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!Array.isArray(data)) throw new Error('Malformed mood log file');
+        localStorage.setItem('moodLogs', JSON.stringify(data));
+        alert('Mood data imported! Please refresh the page.');
+      } catch (err) { alert('Import failed: '+err.message); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+});
+
+// === FORM VALIDATION ===
+['gratitude-entry','journal-entry'].forEach(id => {
+  const ta = document.getElementById(id);
+  if(ta) {
+    ta.setAttribute('maxlength','300');
+    ta.addEventListener('input',function(){
+      if(this.value.length > 300) {
+        this.value = this.value.slice(0,300);
+        alert('Max 300 characters.');
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>
